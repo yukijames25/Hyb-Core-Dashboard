@@ -111,7 +111,19 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
         const res = await fetch(`${API_BASE_URL}/api/metrics/history?agent=${agentName}&range=${timeRange}`);
         if (!res.ok) throw new Error("FETCH_ERROR");
         const data = await res.json();
-        setHistoryData(data || []);
+        
+        // 🌟 過去データも同様にキー名の揺れを吸収して正規化します
+        const normalizedData = (data || []).map(item => ({
+          ...item,
+          cpu: item.cpu ?? item.cpu_usage ?? item.cpuUsage ?? item.Cpu ?? 0,
+          memory: item.memory ?? item.memory_usage ?? item.memoryUsage ?? item.Memory ?? 0,
+          disk: item.disk ?? item.disk_usage ?? item.diskUsage ?? item.Disk ?? 0,
+          network_tx: item.network_tx ?? item.net_tx ?? item.networkTx ?? item.NetworkTx ?? item.bytes_sent ?? item.network?.tx ?? 0,
+          network_rx: item.network_rx ?? item.net_rx ?? item.networkRx ?? item.NetworkRx ?? item.bytes_recv ?? item.network?.rx ?? 0,
+          uptime: item.uptime ?? item.Uptime ?? item.up_time ?? 0,
+        }));
+        
+        setHistoryData(normalizedData);
       } catch (err) {
         setError(err.message);
       } finally {

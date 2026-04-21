@@ -279,16 +279,19 @@ export default function App() {
         const agentName = raw.agent_name || 'Unknown-PC';
         const timeString = new Date().toISOString(); // 日時としてパースできるようにISO文字列に変更
 
-        const cpuVal = raw.cpu !== undefined ? raw.cpu : raw.cpu_usage;
-        const memVal = raw.memory !== undefined ? raw.memory : raw.memory_usage;
-        const diskVal = raw.disk !== undefined ? raw.disk : raw.disk_usage;
-        
-        // 🌟 ここに追加：APIから届いたネットワークとUptimeのデータを取り出す！
-        const netTx = raw.network_tx || 0;
-        const netRx = raw.network_rx || 0;
-        const uptimeVal = raw.uptime || 0;
+        // 🌟 バックエンドのJSONキー名が想定と違う場合（大文字小文字、省略形など）に備えて幅広くチェック！
+        const cpuVal = raw.cpu ?? raw.cpu_usage ?? raw.cpuUsage ?? raw.Cpu;
+        if (cpuVal == null) return; // CPUデータが無い場合は無効なパケットとして無視
 
-        if (cpuVal === undefined) return; 
+        const memVal = raw.memory ?? raw.memory_usage ?? raw.memoryUsage ?? raw.Memory ?? 0;
+        const diskVal = raw.disk ?? raw.disk_usage ?? raw.diskUsage ?? raw.Disk ?? 0;
+        
+        const netTx = raw.network_tx ?? raw.net_tx ?? raw.networkTx ?? raw.NetworkTx ?? raw.bytes_sent ?? raw.network?.tx ?? 0;
+        const netRx = raw.network_rx ?? raw.net_rx ?? raw.networkRx ?? raw.NetworkRx ?? raw.bytes_recv ?? raw.network?.rx ?? 0;
+        const uptimeVal = raw.uptime ?? raw.Uptime ?? raw.up_time ?? 0;
+
+        // 💡 もしこれでもゼロが続くなら、以下のコメントアウト(//)を外してF12開発者ツールで生データのキー名を確認してください
+        // console.log("📦 サーバーから届いた生データ:", raw);
 
         setOverviewData((prev) => [...prev, { time: timeString, [agentName]: cpuVal }].slice(-30));
 
