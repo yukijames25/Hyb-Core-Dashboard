@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import styled, { ThemeProvider } from 'styled-components';
 import AgentDashboard from './AgentDashboard.jsx';
+import JSZip from 'jszip';
 
 // ==========================================
 // 💅 Styled Components
@@ -43,6 +44,22 @@ const ThemeToggleButton = styled.button`
   cursor: pointer;
   font-size: 0.9rem;
   transition: background 0.2s, color 0.2s;
+`;
+
+const AgentDownloadButton = styled.a`
+  padding: 0.5rem 1rem;
+  background-color: ${({ theme }) => theme.cardBackground};
+  color: ${({ theme }) => theme.textColor};
+  border: 1px solid ${({ theme }) => theme.borderColor};
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.2s;
+  &:hover { background-color: ${({ theme }) => theme.buttonBg}; }
 `;
 
 const DownloadButton = styled.button`
@@ -114,6 +131,39 @@ const InfoText = styled.p`
   color: ${({ theme }) => theme.tabInactiveText};
   text-align: center;
   padding: 2rem;
+`;
+
+// 🌟 モーダル用UIコンポーネント
+const ModalOverlay = styled.div`
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background: ${({ theme }) => theme.cardBackground};
+  padding: 2rem; border-radius: 8px; width: 400px; max-width: 90vw;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+`;
+
+const RadioLabel = styled.label`
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.8rem; cursor: pointer;
+  color: ${({ theme }) => theme.textColor};
+  font-size: 1rem;
+`;
+
+const ModalActions = styled.div`
+  display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;
+`;
+
+const ModalButton = styled.button`
+  padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: bold; border: none;
+  background: ${({ primary, theme }) => primary ? theme.accentColor : theme.buttonBg};
+  color: ${({ primary, theme }) => primary ? theme.background : theme.buttonText};
+  transition: opacity 0.2s;
+  &:hover { opacity: 0.8; }
 `;
 
 export default function App() {
@@ -241,17 +291,15 @@ export default function App() {
   // ==========================================
   // 🌟 CSVダウンロード機能
   // ==========================================
-  const handleDownloadCSV = () => {
-    if (!currentChartData || currentChartData.length === 0) {
-      alert("ダウンロードするデータがありません。");
-      return;
-    }
-    
-    // オブジェクトのキーをCSVのヘッダーとして取得
-    const headers = Object.keys(currentChartData[0]);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [downloadRange, setDownloadRange] = useState('live');
+  const [isDownloading, setIsDownloading] = useState(false); // 🌟 ダウンロード中ステート
+
+  const generateCSVBlob = (data) => {
+    const headers = Object.keys(data[0]);
     const csvRows = [
       headers.join(','), // 1行目（ヘッダー）
-      ...currentChartData.map(row => headers.map(fieldName => {
+      ...data.map(row => headers.map(fieldName => {
         let value = row[fieldName] ?? '';
         
         // 🌟 時刻(time)列をExcelで読みやすい「YYYY/MM/DD HH:mm:ss」形式に変換
@@ -281,11 +329,69 @@ export default function App() {
     
     // 🌟 Excel文字化け対策（BOM付きUTF-8にする）
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const blob = new Blob([bom, csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${activeTab}_${timeRange}_report.csv`;
-    link.click();
+    return new Blob([bom, csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  };
+
+  const executeDownload = async () => {
+    setIsDownloading(true);
+    const ranges = downloadRange === 'all' ? ['live', '1h', '24h', '7d'] : [downloadRange];
+    let downloadedCount = 0;
+    const zip = new JSZip(); // 🌟 ZIPインスタンスを作成
+
+    for (const range of ranges) {
+      let dataToDownload = [];
+
+      if (range === 'live') {
+        dataToDownload = currentChartData;
+      } else {
+        if (activeTab === 'overview') {
+          if (downloadRange !== 'all') alert("全体 (Overview) タブではLiveデータのみダウンロード可能です。");
+          continue; // 全体タブの過去データ取得はスキップ
+        }
+        try {
+          // バックエンドから該当期間の履歴データを取得
+          const res = await fetch(`${API_BASE_URL}/api/metrics/history?agent=${activeTab}&range=${range}`);
+          if (res.ok) dataToDownload = await res.json();
+        } catch (err) {
+          console.error(`Failed to fetch ${range} data:`, err);
+        }
+      }
+
+      if (dataToDownload && dataToDownload.length > 0) {
+        const blob = generateCSVBlob(dataToDownload);
+        const filename = `${activeTab}_${range}_report.csv`;
+
+        if (ranges.length > 1) {
+          zip.file(filename, blob); // 🌟 複数の場合はZIPに追加
+        } else {
+          // 単一ファイルの場合はそのままダウンロード
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          link.click();
+        }
+        downloadedCount++;
+      } else if (downloadRange !== 'all') {
+        alert(`${range} のデータがありません。`);
+      }
+    }
+
+    if (ranges.length > 1 && downloadedCount > 0) {
+      const zipBlob = await zip.generateAsync({ type: 'blob' }); // 🌟 ZIPを生成
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      link.download = `${activeTab}_all_reports_${yyyy}${mm}${dd}.zip`;
+      link.click();
+    } else if (downloadRange === 'all' && downloadedCount === 0) {
+      alert("ダウンロード可能なデータがありませんでした。");
+    }
+    
+    setIsDownloading(false);
+    setIsDownloadModalOpen(false);
   };
 
   return (
@@ -295,10 +401,13 @@ export default function App() {
           <HeaderContent>
             <Title>🚀 Hyb-Core Dashboard</Title>
             <HeaderActions>
+              <AgentDownloadButton href="/HybCore-Agent-Installer.zip" download>
+                📦 Agent DownLoad
+              </AgentDownloadButton>
               <ThemeToggleButton onClick={toggleTheme}>
                 {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
               </ThemeToggleButton>
-              <DownloadButton onClick={handleDownloadCSV}>
+              <DownloadButton onClick={() => setIsDownloadModalOpen(true)}>
                 📊 レポートをダウンロード
               </DownloadButton>
             </HeaderActions>
@@ -347,6 +456,50 @@ export default function App() {
             setError={setError}
             onDataUpdate={setAgentChartData}
           />
+        )}
+
+        {/* 🌟 ダウンロード用モーダル */}
+        {isDownloadModalOpen && (
+          <ModalOverlay onClick={() => !isDownloading && setIsDownloadModalOpen(false)}>
+            <ModalContent onClick={e => e.stopPropagation()}>
+              {isDownloading ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <h3 style={{ color: currentTheme.accentColor }}>⏳ ダウンロード中...</h3>
+                  <p style={{ color: currentTheme.textColor }}>データを取得・生成しています。しばらくお待ちください。</p>
+                </div>
+              ) : (
+                <>
+                  <h2 style={{ marginTop: 0, color: currentTheme.textColor }}>ダウンロードするレポートを選択</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', margin: '1.5rem 0' }}>
+                    <RadioLabel>
+                      <input type="radio" name="downloadRange" value="live" checked={downloadRange === 'live'} onChange={(e) => setDownloadRange(e.target.value)} />
+                      Live (現在の表示データ)
+                    </RadioLabel>
+                    <RadioLabel>
+                      <input type="radio" name="downloadRange" value="1h" checked={downloadRange === '1h'} onChange={(e) => setDownloadRange(e.target.value)} />
+                      1時間 (Raw)
+                    </RadioLabel>
+                    <RadioLabel>
+                      <input type="radio" name="downloadRange" value="24h" checked={downloadRange === '24h'} onChange={(e) => setDownloadRange(e.target.value)} />
+                      24時間 (Rollup)
+                    </RadioLabel>
+                    <RadioLabel>
+                      <input type="radio" name="downloadRange" value="7d" checked={downloadRange === '7d'} onChange={(e) => setDownloadRange(e.target.value)} />
+                      7日間 (Rollup)
+                    </RadioLabel>
+                    <RadioLabel>
+                      <input type="radio" name="downloadRange" value="all" checked={downloadRange === 'all'} onChange={(e) => setDownloadRange(e.target.value)} />
+                      上記全て (1つのZIPファイルとして保存)
+                    </RadioLabel>
+                  </div>
+                  <ModalActions>
+                    <ModalButton onClick={() => setIsDownloadModalOpen(false)}>キャンセル</ModalButton>
+                    <ModalButton primary onClick={executeDownload}>ダウンロード実行</ModalButton>
+                  </ModalActions>
+                </>
+              )}
+            </ModalContent>
+          </ModalOverlay>
         )}
       </AppWrapper>
     </ThemeProvider>
