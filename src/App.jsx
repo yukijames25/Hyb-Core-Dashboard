@@ -45,6 +45,29 @@ const ThemeToggleButton = styled.button`
   transition: background 0.2s, color 0.2s;
 `;
 
+const DownloadButton = styled.a`
+  padding: 0.5rem 1rem;
+  background-color: ${({ theme }) => theme.accentColor};
+  color: ${({ theme }) => theme.background}; /* 文字色を背景の反転にして目立たせる */
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: opacity 0.2s;
+  &:hover {
+    opacity: 0.8;
+  }
+`;
+
+// ボタンを横に並べるためのラッパーも追加しておくと綺麗よ！
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 1rem;
+`;
+
 const TabGroup = styled.nav`
   display: flex;
   gap: 0.5rem;
@@ -214,11 +237,16 @@ export default function App() {
         <HeaderWrapper>
           <HeaderContent>
             <Title>🚀 Hyb-Core Dashboard</Title>
-            <ThemeToggleButton onClick={toggleTheme}>
-              {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
-            </ThemeToggleButton>
-          </HeaderContent>
-          <TabGroup>
+            <HeaderActions>
+              {/* 🌟 これがダウンロードボタン！ publicフォルダのファイル名を指定するだけ！ */}
+              <DownloadButton href="/HybCore-Agent-Installer.zip" download>
+                📦 Agent DownLoad
+              </DownloadButton>
+              <ThemeToggleButton onClick={toggleTheme}>
+                {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+              </ThemeToggleButton>
+            </HeaderActions>
+          </HeaderContent>          <TabGroup>
             <TabButton active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 全体 (Overview)</TabButton>
             {agents.map(agent => (
               <TabButton key={agent} active={activeTab === agent} onClick={() => setActiveTab(agent)}>💻 {agent}</TabButton>
