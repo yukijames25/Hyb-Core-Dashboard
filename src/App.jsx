@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
 import styled, { ThemeProvider } from 'styled-components';
 import AgentDashboard from './AgentDashboard.jsx';
 import JSZip from 'jszip';
+import { formatTickTime, formatTooltipTime, formatNumber } from './i18n.js';
+import { useTranslation } from 'react-i18next';
 
 // ==========================================
 // 💅 Styled Components
@@ -36,6 +38,17 @@ const Title = styled.h1`
 `;
 
 const ThemeToggleButton = styled.button`
+  padding: 0.5rem 1rem;
+  background: ${({ theme }) => theme.cardBackground};
+  color: ${({ theme }) => theme.textColor};
+  border: 1px solid ${({ theme }) => theme.borderColor};
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, color 0.2s;
+`;
+
+const LanguageSelect = styled.select`
   padding: 0.5rem 1rem;
   background: ${({ theme }) => theme.cardBackground};
   color: ${({ theme }) => theme.textColor};
@@ -168,6 +181,9 @@ const ModalButton = styled.button`
 
 export default function App() {
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.resolvedLanguage || 'ja'; // 現在の言語を取得
+
   const [overviewData, setOverviewData] = useState([]);
   const [agentData, setAgentData] = useState({});
   const [activeTab, setActiveTab] = useState('overview');
@@ -244,7 +260,7 @@ export default function App() {
   }, [theme]);
 
   // ==========================================
-  // 🎨 テーマ切り替え
+  // 🎨 テーマ切り替え関数
   // ==========================================
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -261,7 +277,7 @@ export default function App() {
       try {
         const raw = JSON.parse(event.data);
         const agentName = raw.agent_name || 'Unknown-PC';
-        const timeString = new Date().toLocaleTimeString();
+        const timeString = new Date().toISOString(); // 日時としてパースできるようにISO文字列に変更
 
         const cpuVal = raw.cpu !== undefined ? raw.cpu : raw.cpu_usage;
         const memVal = raw.memory !== undefined ? raw.memory : raw.memory_usage;
@@ -281,7 +297,7 @@ export default function App() {
       }
     };
 
-    eventSource.onerror = () => setError("サーバーとの接続が切れました。再接続中...");
+    eventSource.onerror = () => setError('SSE_ERROR');
     return () => eventSource.close();
   }, [timeRange]); // timeRange が変わるたびに再評価
 
@@ -338,6 +354,7 @@ export default function App() {
     const ranges = downloadRange === 'all' ? ['live', '1h', '24h', '7d'] : [downloadRange];
     let downloadedCount = 0;
     const zip = new JSZip(); // 🌟 ZIPインスタンスを作成
+    const tabNameLocal = activeTab === 'overview' ? t('overviewTab') : activeTab;
 
     for (const range of ranges) {
       let dataToDownload = [];
@@ -346,7 +363,7 @@ export default function App() {
         dataToDownload = currentChartData;
       } else {
         if (activeTab === 'overview') {
-          if (downloadRange !== 'all') alert("全体 (Overview) タブではLiveデータのみダウンロード可能です。");
+          if (downloadRange !== 'all') alert(t('alertOverviewLiveOnly'));
           continue; // 全体タブの過去データ取得はスキップ
         }
         try {
@@ -360,7 +377,7 @@ export default function App() {
 
       if (dataToDownload && dataToDownload.length > 0) {
         const blob = generateCSVBlob(dataToDownload);
-        const filename = `${activeTab}_${range}_report.csv`;
+        const filename = t('reportFilename', { tab: tabNameLocal, range });
 
         if (ranges.length > 1) {
           zip.file(filename, blob); // 🌟 複数の場合はZIPに追加
@@ -373,7 +390,7 @@ export default function App() {
         }
         downloadedCount++;
       } else if (downloadRange !== 'all') {
-        alert(`${range} のデータがありません。`);
+        alert(t('alertNoDataFor', { range }));
       }
     }
 
@@ -385,10 +402,10 @@ export default function App() {
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      link.download = `${activeTab}_all_reports_${yyyy}${mm}${dd}.zip`;
+      link.download = t('allReportsZip', { tab: tabNameLocal, date: `${yyyy}${mm}${dd}` });
       link.click();
     } else if (downloadRange === 'all' && downloadedCount === 0) {
-      alert("ダウンロード可能なデータがありませんでした。");
+      alert(t('alertNoDownloadable'));
     }
     
     setIsDownloading(false);
@@ -403,41 +420,72 @@ export default function App() {
             <Title>🚀 Hyb-Core Dashboard</Title>
             <HeaderActions>
               <AgentDownloadButton href="/HybCore-Agent-Installer.zip" download>
-                📦 Agent DownLoad
+                📦 {t('agentDownload')}
               </AgentDownloadButton>
-              <ThemeToggleButton onClick={toggleTheme}>
-                {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
-              </ThemeToggleButton>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <LanguageSelect value={currentLang} onChange={(e) => i18n.changeLanguage(e.target.value)}>
+                  <option value="ja">🌐 日本語</option>
+                  <option value="en">🌐 English</option>
+                  <option value="zh">🌐 中文</option>
+                  <option value="ko">🌐 한국어</option>
+                </LanguageSelect>
+                <ThemeToggleButton onClick={toggleTheme}>
+                  {theme === 'light' ? t('darkMode') : t('lightMode')}
+                </ThemeToggleButton>
+              </div>
               <DownloadButton onClick={() => setIsDownloadModalOpen(true)}>
-                📊 レポートをダウンロード
+                📊 {t('downloadReport')}
               </DownloadButton>
             </HeaderActions>
         </HeaderContent>
         <TabGroup>
-            <TabButton active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 全体 (Overview)</TabButton>
+            <TabButton active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 {t('overviewTab')}</TabButton>
             {agents.map(agent => (
               <TabButton key={agent} active={activeTab === agent} onClick={() => setActiveTab(agent)}>💻 {agent}</TabButton>
             ))}
           </TabGroup>
         </HeaderWrapper>
 
-        {error && <ErrorMessage>⚠️ {error}</ErrorMessage>}
+        {error && <ErrorMessage>⚠️ {
+          error === 'SSE_ERROR' ? t('connectionLost') :
+          error === 'FETCH_ERROR' ? t('fetchError') :
+          error
+        }</ErrorMessage>}
 
         {/* ==================== 概要タブ ==================== */}
         {activeTab === 'overview' && (
           <Card>
-            <CardTitle>Network CPU Usage (Live)</CardTitle>
-            {agents.length === 0 ? <InfoText>エージェント待機中...</InfoText> : (
+            <CardTitle>{t('networkCpuLive')}</CardTitle>
+            {agents.length === 0 ? <InfoText>{t('waitingAgents')}</InfoText> : (
               <div style={{ width: '100%', height: 450 }}>
                 <ResponsiveContainer>
                   <LineChart data={overviewData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={currentTheme.gridStroke} />
-                    <XAxis dataKey="time" stroke={currentTheme.axisStroke} />
+                    <XAxis dataKey="time" stroke={currentTheme.axisStroke} tickFormatter={(val) => formatTickTime(currentLang, val)} />
                     <YAxis stroke={currentTheme.axisStroke} domain={[0, 100]} />
-                    <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} contentStyle={{ backgroundColor: currentTheme.tooltipBg, border: `1px solid ${currentTheme.tooltipBorder}`, color: currentTheme.textColor }} />
-                    <Legend />
+                    <Tooltip labelFormatter={(val) => formatTooltipTime(currentLang, val)} formatter={(value) => `${formatNumber(currentLang, value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`} contentStyle={{ backgroundColor: currentTheme.tooltipBg, border: `1px solid ${currentTheme.tooltipBorder}`, color: currentTheme.textColor }} />
+                    <Legend 
+                      onClick={(e) => {
+                        if (e && e.dataKey) {
+                          setActiveTab(String(e.dataKey));
+                          setTimeRange('live');
+                        }
+                      }}
+                      wrapperStyle={{ cursor: 'pointer' }}
+                    />
+                    <Brush dataKey="time" height={30} stroke={currentTheme.accentColor} tickFormatter={(val) => formatTickTime(currentLang, val)} />
                     {agents.map((agent, i) => (
-                      <Line key={agent} type="monotone" dataKey={agent} stroke={colors[i % colors.length]} strokeWidth={3} dot={false} connectNulls={true} isAnimationActive={false} />
+                      <Line 
+                        key={agent} 
+                        type="monotone" 
+                        dataKey={agent} 
+                        stroke={colors[i % colors.length]} 
+                        strokeWidth={3} 
+                        dot={false} 
+                        connectNulls={true} 
+                        isAnimationActive={false} 
+                        activeDot={{ onClick: () => { setActiveTab(agent); setTimeRange('live'); }, cursor: 'pointer' }}
+                      />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -465,37 +513,37 @@ export default function App() {
             <ModalContent onClick={e => e.stopPropagation()}>
               {isDownloading ? (
                 <div style={{ textAlign: 'center', padding: '2rem' }}>
-                  <h3 style={{ color: currentTheme.accentColor }}>⏳ ダウンロード中...</h3>
-                  <p style={{ color: currentTheme.textColor }}>データを取得・生成しています。しばらくお待ちください。</p>
+                  <h3 style={{ color: currentTheme.accentColor }}>⏳ {t('downloading')}</h3>
+                  <p style={{ color: currentTheme.textColor }}>{t('fetchingData')}</p>
                 </div>
               ) : (
                 <>
-                  <h2 style={{ marginTop: 0, color: currentTheme.textColor }}>ダウンロードするレポートを選択</h2>
+                  <h2 style={{ marginTop: 0, color: currentTheme.textColor }}>{t('selectReport')}</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', margin: '1.5rem 0' }}>
                     <RadioLabel>
                       <input type="radio" name="downloadRange" value="live" checked={downloadRange === 'live'} onChange={(e) => setDownloadRange(e.target.value)} />
-                      Live (現在の表示データ)
+                      Live ({t('currentData')})
                     </RadioLabel>
                     <RadioLabel>
                       <input type="radio" name="downloadRange" value="1h" checked={downloadRange === '1h'} onChange={(e) => setDownloadRange(e.target.value)} />
-                      1時間 (Raw)
+                      1{t('hour')} (Raw)
                     </RadioLabel>
                     <RadioLabel>
                       <input type="radio" name="downloadRange" value="24h" checked={downloadRange === '24h'} onChange={(e) => setDownloadRange(e.target.value)} />
-                      24時間 (Rollup)
+                      24{t('hour')} (Rollup)
                     </RadioLabel>
                     <RadioLabel>
                       <input type="radio" name="downloadRange" value="7d" checked={downloadRange === '7d'} onChange={(e) => setDownloadRange(e.target.value)} />
-                      7日間 (Rollup)
+                      7{t('days')} (Rollup)
                     </RadioLabel>
                     <RadioLabel>
                       <input type="radio" name="downloadRange" value="all" checked={downloadRange === 'all'} onChange={(e) => setDownloadRange(e.target.value)} />
-                      上記全て (1つのZIPファイルとして保存)
+                      {t('allAboveZip')}
                     </RadioLabel>
                   </div>
                   <ModalActions>
-                    <ModalButton onClick={() => setIsDownloadModalOpen(false)}>キャンセル</ModalButton>
-                    <ModalButton primary onClick={executeDownload}>ダウンロード実行</ModalButton>
+                    <ModalButton onClick={() => setIsDownloadModalOpen(false)}>{t('cancel')}</ModalButton>
+                    <ModalButton primary onClick={executeDownload}>{t('downloadExec')}</ModalButton>
                   </ModalActions>
                 </>
               )}
