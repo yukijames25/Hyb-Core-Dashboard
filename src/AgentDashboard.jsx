@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import styled, { useTheme } from 'styled-components';
 
@@ -56,7 +56,7 @@ const LoadingPlaceholder = styled.div`
   font-size: 1.5rem;
 `;
 
-export default function AgentDashboard({ agentName, liveData, timeRange, setTimeRange, API_BASE_URL, setError }) {
+export default function AgentDashboard({ agentName, liveData, timeRange, setTimeRange, API_BASE_URL, setError, onDataUpdate }) {
   const [historyData, setHistoryData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const theme = useTheme(); // Get theme from ThemeProvider context
@@ -86,9 +86,15 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
     fetchHistory();
   }, [agentName, timeRange, API_BASE_URL, setError]);
 
-  const chartDataToDisplay = timeRange === 'live'
+  const chartDataToDisplay = useMemo(() => timeRange === 'live'
     ? (liveData ? [...liveData].reverse() : [])
-    : historyData;
+    : historyData, [timeRange, liveData, historyData]);
+
+  useEffect(() => {
+    if (onDataUpdate) {
+      onDataUpdate(chartDataToDisplay);
+    }
+  }, [chartDataToDisplay, onDataUpdate]);
 
   return (
     <>

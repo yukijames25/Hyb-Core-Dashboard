@@ -45,10 +45,11 @@ const ThemeToggleButton = styled.button`
   transition: background 0.2s, color 0.2s;
 `;
 
-const DownloadButton = styled.a`
+const DownloadButton = styled.button`
   padding: 0.5rem 1rem;
   background-color: ${({ theme }) => theme.accentColor};
   color: ${({ theme }) => theme.background}; /* 文字色を背景の反転にして目立たせる */
+  border: none;
   text-decoration: none;
   border-radius: 8px;
   font-weight: bold;
@@ -65,7 +66,9 @@ const DownloadButton = styled.a`
 // ボタンを横に並べるためのラッパーも追加しておくと綺麗よ！
 const HeaderActions = styled.div`
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
 `;
 
 const TabGroup = styled.nav`
@@ -179,6 +182,10 @@ export default function App() {
   // 🌟 追加：期間選択と履歴データ用のState
   const [timeRange, setTimeRange] = useState('live'); // 'live', '1h', '24h', '7d'
 
+  // 🌟 ダウンロード用にエージェントのデータを保持するState
+  const [agentChartData, setAgentChartData] = useState([]);
+  const currentChartData = activeTab === 'overview' ? overviewData : agentChartData;
+
   // ==========================================
   // 🌟 テーマをlocalStorageに保存するエフェクト
   // ==========================================
@@ -231,6 +238,56 @@ export default function App() {
   const colors = ['#63b3ed', '#f6ad55', '#68d391', '#fc8181', '#b794f4'];
   const agents = Object.keys(agentData);
 
+  // ==========================================
+  // 🌟 CSVダウンロード機能
+  // ==========================================
+  const handleDownloadCSV = () => {
+    if (!currentChartData || currentChartData.length === 0) {
+      alert("ダウンロードするデータがありません。");
+      return;
+    }
+    
+    // オブジェクトのキーをCSVのヘッダーとして取得
+    const headers = Object.keys(currentChartData[0]);
+    const csvRows = [
+      headers.join(','), // 1行目（ヘッダー）
+      ...currentChartData.map(row => headers.map(fieldName => {
+        let value = row[fieldName] ?? '';
+        
+        // 🌟 時刻(time)列をExcelで読みやすい「YYYY/MM/DD HH:mm:ss」形式に変換
+        if (fieldName === 'time' && value) {
+          const d = new Date(value);
+          if (!isNaN(d.getTime())) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+            value = `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+          } else if (typeof value === 'string' && /^\d{1,2}:\d{1,2}/.test(value)) {
+            // ライブデータ（"HH:mm:ss"）の場合は本日の日付を補完
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            value = `${year}/${month}/${day} ${value}`;
+          }
+        }
+        
+        return JSON.stringify(value);
+      }).join(','))
+    ];
+    
+    // 🌟 Excel文字化け対策（BOM付きUTF-8にする）
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${activeTab}_${timeRange}_report.csv`;
+    link.click();
+  };
+
   return (
     <ThemeProvider theme={currentTheme}>
       <AppWrapper>
@@ -238,15 +295,15 @@ export default function App() {
           <HeaderContent>
             <Title>🚀 Hyb-Core Dashboard</Title>
             <HeaderActions>
-              {/* 🌟 これがダウンロードボタン！ publicフォルダのファイル名を指定するだけ！ */}
-              <DownloadButton href="/HybCore-Agent-Installer.zip" download>
-                📦 Agent DownLoad
-              </DownloadButton>
               <ThemeToggleButton onClick={toggleTheme}>
                 {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
               </ThemeToggleButton>
+              <DownloadButton onClick={handleDownloadCSV}>
+                📊 レポートをダウンロード
+              </DownloadButton>
             </HeaderActions>
-          </HeaderContent>          <TabGroup>
+        </HeaderContent>
+        <TabGroup>
             <TabButton active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 全体 (Overview)</TabButton>
             {agents.map(agent => (
               <TabButton key={agent} active={activeTab === agent} onClick={() => setActiveTab(agent)}>💻 {agent}</TabButton>
@@ -288,6 +345,7 @@ export default function App() {
             setTimeRange={setTimeRange}
             API_BASE_URL={API_BASE_URL}
             setError={setError}
+            onDataUpdate={setAgentChartData}
           />
         )}
       </AppWrapper>
