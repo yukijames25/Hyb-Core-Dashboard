@@ -102,7 +102,7 @@ export default function App() {
     <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '1100px', margin: '0 auto', background: '#1a202c', color: '#e2e8f0', minHeight: '100vh' }}>
       
       <div style={{ borderBottom: '1px solid #2d3748', marginBottom: '2rem' }}>
-        <h1 style={{ color: '#f7fafc', marginBottom: '1rem' }}>🚀 Hyb-Core Enterprise Dashboard</h1>
+        <h1 style={{ color: '#f7fafc', marginBottom: '1rem' }}>🚀 Hyb-Core Dashboard</h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button style={getTabStyle('overview')} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 全体 (Overview)</button>
           {agents.map(agent => (
