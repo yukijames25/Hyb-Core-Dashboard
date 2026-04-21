@@ -220,8 +220,7 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
             {t('loadingData')}
           </LoadingPlaceholder>
         ) : (
-          <div style={{ width: '100%', height: 350 }}>
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={350}>
               <LineChart data={chartDataToDisplay} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
                 <XAxis dataKey="time" stroke={theme.axisStroke} tickFormatter={(val) => formatTickTime(currentLang, val)} />
@@ -235,15 +234,13 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
                 <Line type="monotone" dataKey="disk" name={t('diskUsage')} stroke="#b794f4" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
-          </div>
         )}
       </Card>
 
       {/* 🌟 これがネットワーク用の新しいグラフ！既存のCardの下に追加してね */}
       <Card mb>
         <CardTitle>{t('networkTraffic')}</CardTitle>
-        <div style={{ width: '100%', height: 250 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={250}>
             <LineChart data={chartDataToDisplay} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme.gridStroke} />
               <XAxis dataKey="time" stroke={theme.axisStroke} tickFormatter={(val) => formatTickTime(currentLang, val)} />
@@ -256,7 +253,6 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
               <Line type="monotone" dataKey="network_tx" name={t('uploadTx')} stroke="#ed64a6" strokeWidth={2} dot={timeRange === 'live' ? {r:3} : false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
       </Card>
     </>
   );

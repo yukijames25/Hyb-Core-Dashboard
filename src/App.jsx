@@ -282,13 +282,30 @@ export default function App() {
         const cpuVal = raw.cpu !== undefined ? raw.cpu : raw.cpu_usage;
         const memVal = raw.memory !== undefined ? raw.memory : raw.memory_usage;
         const diskVal = raw.disk !== undefined ? raw.disk : raw.disk_usage;
+        
+        // 🌟 ここに追加：APIから届いたネットワークとUptimeのデータを取り出す！
+        const netTx = raw.network_tx || 0;
+        const netRx = raw.network_rx || 0;
+        const uptimeVal = raw.uptime || 0;
+
         if (cpuVal === undefined) return; 
 
         setOverviewData((prev) => [...prev, { time: timeString, [agentName]: cpuVal }].slice(-30));
 
         setAgentData((prev) => {
           const currentHistory = prev[agentName] || [];
-          const updatedHistory = [{ time: timeString, cpu: cpuVal, memory: memVal, disk: diskVal }, ...currentHistory];
+          
+          // 🌟 ここに追加：updatedHistory の中に network_tx, network_rx, uptime を詰め込む！
+          const updatedHistory = [{ 
+            time: timeString, 
+            cpu: cpuVal, 
+            memory: memVal, 
+            disk: diskVal,
+            network_tx: netTx,     // 👈 これ！
+            network_rx: netRx,     // 👈 これ！
+            uptime: uptimeVal      // 👈 これ！
+          }, ...currentHistory];
+          
           return { ...prev, [agentName]: updatedHistory.slice(0, 20) };
         });
         setError(null);
@@ -457,8 +474,7 @@ export default function App() {
           <Card>
             <CardTitle>{t('networkCpuLive')}</CardTitle>
             {agents.length === 0 ? <InfoText>{t('waitingAgents')}</InfoText> : (
-              <div style={{ width: '100%', height: 450 }}>
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={450}>
                   <LineChart data={overviewData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={currentTheme.gridStroke} />
                     <XAxis dataKey="time" stroke={currentTheme.axisStroke} tickFormatter={(val) => formatTickTime(currentLang, val)} />
@@ -489,7 +505,6 @@ export default function App() {
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
             )}
           </Card>
         )}
