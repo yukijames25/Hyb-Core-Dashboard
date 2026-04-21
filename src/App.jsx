@@ -265,13 +265,14 @@ export default function App() {
 
         const cpuVal = raw.cpu !== undefined ? raw.cpu : raw.cpu_usage;
         const memVal = raw.memory !== undefined ? raw.memory : raw.memory_usage;
+        const diskVal = raw.disk !== undefined ? raw.disk : raw.disk_usage;
         if (cpuVal === undefined) return; 
 
         setOverviewData((prev) => [...prev, { time: timeString, [agentName]: cpuVal }].slice(-30));
 
         setAgentData((prev) => {
           const currentHistory = prev[agentName] || [];
-          const updatedHistory = [{ time: timeString, cpu: cpuVal, memory: memVal }, ...currentHistory];
+          const updatedHistory = [{ time: timeString, cpu: cpuVal, memory: memVal, disk: diskVal }, ...currentHistory];
           return { ...prev, [agentName]: updatedHistory.slice(0, 20) };
         });
         setError(null);

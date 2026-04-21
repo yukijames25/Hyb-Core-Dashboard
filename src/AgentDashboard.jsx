@@ -125,6 +125,8 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
                 <Legend />
                 <Line type="monotone" dataKey="cpu" name="CPU Usage" stroke="#63b3ed" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
                 <Line type="monotone" dataKey="memory" name="Memory Usage" stroke="#f6ad55" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
+                {/* CPUとMemoryのLineの下に追加！ */}
+                <Line type="monotone" dataKey="disk" name="Disk Usage" stroke="#b794f4" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
