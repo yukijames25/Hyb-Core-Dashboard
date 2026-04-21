@@ -284,14 +284,14 @@ export default function App() {
         if (cpuVal == null) return; // CPUデータが無い場合は無効なパケットとして無視
 
         const memVal = raw.memory ?? raw.memory_usage ?? raw.memoryUsage ?? raw.Memory ?? 0;
-        const diskVal = raw.disk ?? raw.disk_usage ?? raw.diskUsage ?? raw.Disk ?? 0;
+        const diskVal = raw.disk ?? raw.disk_usage ?? raw.diskUsage ?? raw.Disk ?? raw.disk_percent ?? raw.diskPercent ?? 0;
         
-        const netTx = raw.network_tx ?? raw.net_tx ?? raw.networkTx ?? raw.NetworkTx ?? raw.bytes_sent ?? raw.network?.tx ?? 0;
-        const netRx = raw.network_rx ?? raw.net_rx ?? raw.networkRx ?? raw.NetworkRx ?? raw.bytes_recv ?? raw.network?.rx ?? 0;
+        const netTx = raw.network_tx ?? raw.net_tx ?? raw.networkTx ?? raw.NetworkTx ?? raw.bytes_sent ?? raw.bytesSent ?? raw.tx_bytes ?? raw.txBytes ?? raw.network?.tx ?? 0;
+        const netRx = raw.network_rx ?? raw.net_rx ?? raw.networkRx ?? raw.NetworkRx ?? raw.bytes_recv ?? raw.bytesRecv ?? raw.rx_bytes ?? raw.rxBytes ?? raw.network?.rx ?? 0;
         const uptimeVal = raw.uptime ?? raw.Uptime ?? raw.up_time ?? 0;
 
-        // 💡 もしこれでもゼロが続くなら、以下のコメントアウト(//)を外してF12開発者ツールで生データのキー名を確認してください
-        // console.log("📦 サーバーから届いた生データ:", raw);
+        // 💡 サーバーから届いた生データのキー名をコンソールに出力します！（F12で確認してください）
+        console.log("📦 サーバーから届いた生データ:", raw);
 
         setOverviewData((prev) => [...prev, { time: timeString, [agentName]: cpuVal }].slice(-30));
 
