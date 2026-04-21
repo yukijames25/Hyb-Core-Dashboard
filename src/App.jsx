@@ -9,7 +9,7 @@ import AgentDashboard from './AgentDashboard.jsx';
 const AppWrapper = styled.div`
   padding: 1.5rem;
   font-family: sans-serif;
-  max-width: 1100px;
+  max-width: 100%;
   margin: 0 auto;
   background: ${({ theme }) => theme.background};
   color: ${({ theme }) => theme.textColor};
