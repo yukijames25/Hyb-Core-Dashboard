@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
 import styled, { ThemeProvider } from 'styled-components';
 import AgentDashboard from './AgentDashboard.jsx';
@@ -7,6 +7,9 @@ import { formatTickTime, formatTooltipTime, formatNumber } from './i18n.js';
 import { useTranslation } from 'react-i18next';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
+import { TrayIcon } from '@tauri-apps/api/tray';
+import { defaultWindowIcon } from '@tauri-apps/api/app';
+import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 
 // ==========================================
 // 💅 Styled Components
@@ -233,8 +236,11 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const currentLang = i18n.resolvedLanguage || 'ja'; // 現在の言語を取得
   const isTauri = '__TAURI_INTERNALS__' in window;
-  const appWindow = isTauri ? getCurrentWindow() : null;
+  
+  // 🌟 getCurrentWindow()が毎レンダリングごとに新しいオブジェクトを返して枠がズレる（ドリフトする）のを防ぐ
+  const appWindow = useMemo(() => isTauri ? getCurrentWindow() : null, [isTauri]);
   const [isPinned, setIsPinned] = useState(false);
+  const [isAutostart, setIsAutostart] = useState(false);
 
   const [overviewData, setOverviewData] = useState([]);
   const [agentData, setAgentData] = useState({});
@@ -336,12 +342,74 @@ export default function App() {
   };
 
   // ==========================================
+  // 🚀 PC起動時の自動起動（スタートアップ）の確認と切り替え
+  // ==========================================
+  useEffect(() => {
+    if (!isTauri) return;
+    const checkAutostart = async () => {
+      try {
+        const enabled = await isEnabled();
+        setIsAutostart(enabled);
+      } catch (err) {
+        console.error("Failed to check autostart status:", err);
+      }
+    };
+    checkAutostart();
+  }, [isTauri]);
+
+  const toggleAutostart = async () => {
+    try {
+      if (isAutostart) {
+        await disable();
+        setIsAutostart(false);
+      } else {
+        await enable();
+        setIsAutostart(true);
+      }
+    } catch (err) {
+      console.error("Failed to toggle autostart:", err);
+    }
+  };
+
+  // ==========================================
+  // 📥 システムトレイ（タスクトレイ）の初期化
+  // ==========================================
+  useEffect(() => {
+    if (!appWindow) return;
+
+    const setupTray = async () => {
+      try {
+        await TrayIcon.new({
+          icon: await defaultWindowIcon(),
+          tooltip: 'Hyb-Core Dashboard\n(Right-click to Quit)',
+          action: (event) => {
+            if (event.type === 'Click') {
+              if (event.button === 'Left') {
+                appWindow.show();
+                appWindow.setFocus();
+              } else if (event.button === 'Right') {
+                if (window.confirm('アプリを完全に終了しますか？ (Are you sure you want to quit?)')) {
+                  appWindow.destroy(); // 🌟 ウィンドウを破棄してアプリを完全終了
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.log("Tray icon already exists or failed:", err);
+      }
+    };
+    setupTray();
+  }, [appWindow]);
+
+  // ==========================================
   // 🪟 ウィンドウの状態（サイズ・位置）を保存・復元
   // ==========================================
   useEffect(() => {
     if (!appWindow) return;
     let unlistenResize;
     let unlistenMove;
+    let unlistenClose;
     let timeoutId;
 
     const saveState = async () => {
@@ -381,12 +449,19 @@ export default function App() {
     restoreState().then(() => {
       appWindow.onResized(debouncedSave).then(u => unlistenResize = u);
       appWindow.onMoved(debouncedSave).then(u => unlistenMove = u);
+      
+      // 🌟 OS標準の閉じる操作（Alt+F4やタスクバーから閉じる）を横取りして隠す
+      appWindow.onCloseRequested((event) => {
+        event.preventDefault();
+        appWindow.hide();
+      }).then(u => unlistenClose = u);
     });
 
     return () => {
       clearTimeout(timeoutId);
       if (unlistenResize) unlistenResize();
       if (unlistenMove) unlistenMove();
+      if (unlistenClose) unlistenClose();
     };
   }, [appWindow]);
 
@@ -566,18 +641,29 @@ export default function App() {
       {isTauri && (
         <TitleBar>
           {/* data-tauri-drag-region 属性をつけることで、ここを掴んでウィンドウを移動できるようになります */}
-          <DragRegion data-tauri-drag-region>
+          {/* 🌟 ダブルクリックで最大化/元に戻す機能を追加 */}
+          <DragRegion data-tauri-drag-region onDoubleClick={() => appWindow?.toggleMaximize()}>
             <span style={{ paddingLeft: '10px', fontSize: '12px', fontWeight: 'bold', pointerEvents: 'none' }}>
               🚀 Hyb-Core Dashboard
             </span>
           </DragRegion>
           <WindowControls>
             <WindowButton onClick={togglePin} isActive={isPinned} title={isPinned ? t('unpinWindow') : t('pinWindow')}>
-              📌
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                 <path d="M10 4L11 1L5 1L6 4L4 9L7 9L7 15L8 16L9 15L9 9L12 9L10 4Z"/>
+              </svg>
             </WindowButton>
-            <WindowButton onClick={() => appWindow?.minimize()}>—</WindowButton>
-            <WindowButton onClick={() => appWindow?.toggleMaximize()}>🗖</WindowButton>
-            <WindowButton closeBtn onClick={() => appWindow?.close()}>✕</WindowButton>
+            <WindowButton onClick={() => appWindow?.minimize()}>
+              <svg width="11" height="11" viewBox="0 0 11 11"><line x1="1" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1"/></svg>
+            </WindowButton>
+            <WindowButton onClick={() => appWindow?.toggleMaximize()}>
+              <svg width="11" height="11" viewBox="0 0 11 11"><rect x="1.5" y="1.5" width="8" height="8" fill="none" stroke="currentColor" strokeWidth="1"/></svg>
+            </WindowButton>
+            <WindowButton closeBtn onClick={() => {
+              appWindow?.hide(); // 🌟 アプリを終了せず、バックグラウンド（タスクトレイ）に隠す
+            }}>
+              <svg width="11" height="11" viewBox="0 0 11 11"><path d="M1.5,1.5 L9.5,9.5 M1.5,9.5 L9.5,1.5" stroke="currentColor" strokeWidth="1"/></svg>
+            </WindowButton>
           </WindowControls>
         </TitleBar>
       )}
@@ -599,6 +685,11 @@ export default function App() {
                 <ThemeToggleButton onClick={toggleTheme}>
                   {theme === 'light' ? t('darkMode') : t('lightMode')}
                 </ThemeToggleButton>
+                {isTauri && (
+                  <ThemeToggleButton onClick={toggleAutostart} title="PC起動時に自動でアプリを立ち上げます">
+                    🚀 {isAutostart ? t('autostartOn') : t('autostartOff')}
+                  </ThemeToggleButton>
+                )}
               </div>
               <DownloadButton onClick={() => setIsDownloadModalOpen(true)}>
                 📊 {t('downloadReport')}
