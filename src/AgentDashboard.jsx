@@ -239,7 +239,7 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
                 <YAxis stroke={theme.axisStroke} domain={[0, 100]} />
                 <Tooltip labelFormatter={(val) => formatTooltipTime(currentLang, val)} formatter={(value) => `${formatNumber(currentLang, value, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`} contentStyle={{ backgroundColor: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, color: theme.textColor }} />
                 <Legend />
-                <Brush dataKey="time" height={30} stroke={theme.accentColor} tickFormatter={(val) => formatTickTime(currentLang, val)} />
+                <Brush dataKey="time" height={40} travellerWidth={15} stroke={theme.accentColor} fill={theme.background} tickFormatter={(val) => formatTickTime(currentLang, val)} />
                 <Line type="monotone" dataKey="cpu" name={t('cpuUsage')} stroke="#63b3ed" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
                 <Line type="monotone" dataKey="memory" name={t('memoryUsage')} stroke="#f6ad55" strokeWidth={3} dot={timeRange === 'live' ? {r:4} : false} isAnimationActive={false} />
                 {/* CPUとMemoryのLineの下に追加！ */}
@@ -259,7 +259,7 @@ export default function AgentDashboard({ agentName, liveData, timeRange, setTime
               <YAxis stroke={theme.axisStroke} tickFormatter={(val) => formatTraffic(val, true)} />
               <Tooltip labelFormatter={(val) => formatTooltipTime(currentLang, val)} formatter={(value) => formatTraffic(value, false)} contentStyle={{ backgroundColor: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, color: theme.textColor }} />
               <Legend />
-              <Brush dataKey="time" height={30} stroke={theme.accentColor} tickFormatter={(val) => formatTickTime(currentLang, val)} />
+              <Brush dataKey="time" height={40} travellerWidth={15} stroke={theme.accentColor} fill={theme.background} tickFormatter={(val) => formatTickTime(currentLang, val)} />
               {/* Rx(受信)を緑、Tx(送信)をピンクで描画 */}
               <Line type="monotone" dataKey="network_rx" name={t('downloadRx')} stroke="#48bb78" strokeWidth={2} dot={timeRange === 'live' ? {r:3} : false} isAnimationActive={false} />
               <Line type="monotone" dataKey="network_tx" name={t('uploadTx')} stroke="#ed64a6" strokeWidth={2} dot={timeRange === 'live' ? {r:3} : false} isAnimationActive={false} />

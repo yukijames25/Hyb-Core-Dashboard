@@ -14,10 +14,14 @@ const AppWrapper = styled.div`
   font-family: sans-serif;
   max-width: 100%;
   margin: 0 auto;
-  background: ${({ theme }) => theme.background};
+  background-color: ${({ theme }) => theme.background};
+  background-image: ${({ theme }) => theme.backgroundImage};
+  background-size: cover;
+  background-attachment: fixed;
+  background-position: center;
   color: ${({ theme }) => theme.textColor};
   min-height: 100vh;
-  transition: background 0.2s, color 0.2s;
+  transition: background-color 0.2s, color 0.2s;
 `;
 
 const HeaderWrapper = styled.header`
@@ -198,10 +202,17 @@ export default function App() {
     return prefersDark ? 'dark' : 'light';
   });
 
+  // 🌟 app.haikei.app 風の Polygon Scatter SVG背景を生成する関数
+  const getPolygonScatterSvg = (fillColor) => {
+    const encodedColor = encodeURIComponent(fillColor);
+    return `url("data:image/svg+xml,%3Csvg id='visual' viewBox='0 0 900 600' width='900' height='600' xmlns='http://www.w3.org/2000/svg' version='1.1'%3E%3Cg fill='${encodedColor}'%3E%3Cpolygon points='75,34 94,62 61,77 42,49'/%3E%3Cpolygon points='835,100 848,135 813,126'/%3E%3Cpolygon points='455,263 487,281 472,316 440,298'/%3E%3Cpolygon points='265,496 235,516 209,491'/%3E%3Cpolygon points='755,488 757,523 723,526 721,491'/%3E%3Cpolygon points='56,453 69,486 35,491'/%3E%3Cpolygon points='580,105 605,129 577,151 552,127'/%3E%3Cpolygon points='248,153 281,159 272,192'/%3E%3Cpolygon points='615,316 636,346 605,355'/%3E%3Cpolygon points='150,335 174,364 142,379 118,350'/%3E%3Cpolygon points='365,65 398,67 387,97'/%3E%3Cpolygon points='815,321 848,328 837,360'/%3E%3Cpolygon points='412,460 442,476 421,504 391,488'/%3E%3Cpolygon points='880,520 890,550 860,560'/%3E%3Cpolygon points='10,10 30,20 20,40'/%3E%3Cpolygon points='500,550 530,560 520,590 490,580'/%3E%3C/g%3E%3C/svg%3E")`;
+  };
+
   // 🎨 テーマ定義
   const themes = {
     light: {
       background: '#f7fafc',
+      backgroundImage: getPolygonScatterSvg('#e2e8f0'),
       textColor: '#1a202c',
       cardBackground: '#ffffff',
       borderColor: '#e2e8f0',
@@ -223,6 +234,7 @@ export default function App() {
     },
     dark: {
       background: '#1a202c',
+      backgroundImage: getPolygonScatterSvg('#2d3748'),
       textColor: '#e2e8f0',
       cardBackground: '#2d3748',
       borderColor: '#2d3748',
@@ -492,7 +504,7 @@ export default function App() {
                       }}
                       wrapperStyle={{ cursor: 'pointer' }}
                     />
-                    <Brush dataKey="time" height={30} stroke={currentTheme.accentColor} tickFormatter={(val) => formatTickTime(currentLang, val)} />
+                    <Brush dataKey="time" height={40} travellerWidth={15} stroke={currentTheme.accentColor} fill={currentTheme.background} tickFormatter={(val) => formatTickTime(currentLang, val)} />
                     {agents.map((agent, i) => (
                       <Line 
                         key={agent} 
