@@ -5,12 +5,57 @@ import AgentDashboard from './AgentDashboard.jsx';
 import JSZip from 'jszip';
 import { formatTickTime, formatTooltipTime, formatNumber } from './i18n.js';
 import { useTranslation } from 'react-i18next';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { PhysicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
 
 // ==========================================
 // 💅 Styled Components
 // ==========================================
+const TitleBar = styled.div`
+  height: 30px;
+  background: ${({ theme }) => theme.cardBackground};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  border-bottom: 1px solid ${({ theme }) => theme.borderColor};
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+`;
+
+const DragRegion = styled.div`
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+`;
+
+const WindowControls = styled.div`
+  display: flex;
+  height: 100%;
+`;
+
+const WindowButton = styled.div`
+  width: 46px;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  color: ${({ theme }) => theme.textColor};
+  background: ${({ isActive, theme }) => isActive ? theme.buttonBg : 'transparent'};
+  transition: background 0.2s;
+  &:hover {
+    background: ${({ theme, closeBtn }) => closeBtn ? '#e81123' : theme.buttonBg};
+    color: ${({ theme, closeBtn }) => closeBtn ? '#ffffff' : theme.textColor};
+  }
+`;
+
 const AppWrapper = styled.div`
-  padding: 1.5rem;
+  padding: ${({ isTauri }) => isTauri ? 'calc(1.5rem + 30px)' : '1.5rem'} 1.5rem 1.5rem;
   font-family: sans-serif;
   max-width: 100%;
   margin: 0 auto;
@@ -187,6 +232,9 @@ export default function App() {
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
   const { t, i18n } = useTranslation();
   const currentLang = i18n.resolvedLanguage || 'ja'; // 現在の言語を取得
+  const isTauri = '__TAURI_INTERNALS__' in window;
+  const appWindow = isTauri ? getCurrentWindow() : null;
+  const [isPinned, setIsPinned] = useState(false);
 
   const [overviewData, setOverviewData] = useState([]);
   const [agentData, setAgentData] = useState({});
@@ -275,6 +323,72 @@ export default function App() {
   // 🎨 テーマ切り替え関数
   // ==========================================
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // ==========================================
+  // 📌 常に最前面に表示（ピン留め）の切り替え
+  // ==========================================
+  const togglePin = async () => {
+    if (appWindow) {
+      const nextPinned = !isPinned;
+      await appWindow.setAlwaysOnTop(nextPinned);
+      setIsPinned(nextPinned);
+    }
+  };
+
+  // ==========================================
+  // 🪟 ウィンドウの状態（サイズ・位置）を保存・復元
+  // ==========================================
+  useEffect(() => {
+    if (!appWindow) return;
+    let unlistenResize;
+    let unlistenMove;
+    let timeoutId;
+
+    const saveState = async () => {
+      try {
+        const size = await appWindow.innerSize();
+        const pos = await appWindow.innerPosition();
+        localStorage.setItem('tauriWindowState', JSON.stringify({
+          width: size.width,
+          height: size.height,
+          x: pos.x,
+          y: pos.y
+        }));
+      } catch (err) {
+        console.error('Failed to save window state:', err);
+      }
+    };
+
+    const debouncedSave = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(saveState, 500); // 500msのデバウンスで負荷軽減
+    };
+
+    const restoreState = async () => {
+      const saved = localStorage.getItem('tauriWindowState');
+      if (saved) {
+        try {
+          const { width, height, x, y } = JSON.parse(saved);
+          // 🌟 前回のサイズと位置を復元
+          await appWindow.setSize(new PhysicalSize(width, height));
+          await appWindow.setPosition(new PhysicalPosition(x, y));
+        } catch (err) {
+          console.error('Failed to restore window state:', err);
+        }
+      }
+    };
+
+    restoreState().then(() => {
+      appWindow.onResized(debouncedSave).then(u => unlistenResize = u);
+      appWindow.onMoved(debouncedSave).then(u => unlistenMove = u);
+    });
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (unlistenResize) unlistenResize();
+      if (unlistenMove) unlistenMove();
+    };
+  }, [appWindow]);
 
   // ==========================================
   // ① リアルタイム通信 (SSE) エフェクト
@@ -382,6 +496,9 @@ export default function App() {
   };
 
   const executeDownload = async () => {
+    // 🌟 ダウンロード前に確認ダイアログを表示
+    if (!window.confirm(t('confirmDownload'))) return;
+
     setIsDownloading(true);
     const ranges = downloadRange === 'all' ? ['live', '1h', '24h', '7d'] : [downloadRange];
     let downloadedCount = 0;
@@ -446,7 +563,25 @@ export default function App() {
 
   return (
     <ThemeProvider theme={currentTheme}>
-      <AppWrapper>
+      {isTauri && (
+        <TitleBar>
+          {/* data-tauri-drag-region 属性をつけることで、ここを掴んでウィンドウを移動できるようになります */}
+          <DragRegion data-tauri-drag-region>
+            <span style={{ paddingLeft: '10px', fontSize: '12px', fontWeight: 'bold', pointerEvents: 'none' }}>
+              🚀 Hyb-Core Dashboard
+            </span>
+          </DragRegion>
+          <WindowControls>
+            <WindowButton onClick={togglePin} isActive={isPinned} title={isPinned ? t('unpinWindow') : t('pinWindow')}>
+              📌
+            </WindowButton>
+            <WindowButton onClick={() => appWindow?.minimize()}>—</WindowButton>
+            <WindowButton onClick={() => appWindow?.toggleMaximize()}>🗖</WindowButton>
+            <WindowButton closeBtn onClick={() => appWindow?.close()}>✕</WindowButton>
+          </WindowControls>
+        </TitleBar>
+      )}
+      <AppWrapper isTauri={isTauri}>
         <HeaderWrapper>
           <HeaderContent>
             <Title>🚀 Hyb-Core Dashboard</Title>
