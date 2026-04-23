@@ -10,6 +10,9 @@ import { PhysicalSize, PhysicalPosition } from '@tauri-apps/api/dpi';
 import { TrayIcon } from '@tauri-apps/api/tray';
 import { defaultWindowIcon } from '@tauri-apps/api/app';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 // ==========================================
 // 💅 Styled Components
@@ -245,6 +248,11 @@ export default function App() {
   const [overviewData, setOverviewData] = useState([]);
   const [agentData, setAgentData] = useState({});
   const [activeTab, setActiveTab] = useState('overview');
+
+  // 🌟 エージェントの死活監視用ステート（最終データ受信時刻と現在時刻）
+  const [agentLastSeen, setAgentLastSeen] = useState({});
+  const [now, setNow] = useState(() => Date.now());
+
   const [error, setError] = useState(null);
   // 🌟 localStorageからテーマを読み込むか、デフォルトで'dark'を設定
   // 🌟 さらに、localStorageに設定がなければOSの設定(prefers-color-scheme)を尊重する
@@ -317,6 +325,42 @@ export default function App() {
   // 🌟 ダウンロード用にエージェントのデータを保持するState
   const [agentChartData, setAgentChartData] = useState([]);
   const currentChartData = activeTab === 'overview' ? overviewData : agentChartData;
+
+  // ==========================================
+  // 🟢 死活監視用：現在時刻を1秒ごとに更新
+  // ==========================================
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // ==========================================
+  // 🔄 アプリの自動アップデート確認
+  // ==========================================
+  useEffect(() => {
+    if (!isTauri) return;
+    const checkForUpdates = async () => {
+      try {
+        const update = await check();
+        if (update?.available) {
+          const isConfirmed = await confirm(
+            t('updateAvailablePrompt', { 
+              version: update.version, 
+              defaultValue: `🌟 新しいバージョン (${update.version}) が見つかりました。アップデートして再起動しますか？\n(New version ${update.version} is available. Update and restart now?)` 
+            }),
+            { title: 'Hyb-Core Update', kind: 'info' }
+          );
+          if (isConfirmed) {
+            await update.downloadAndInstall();
+            await relaunch();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check for updates:", err);
+      }
+    };
+    checkForUpdates();
+  }, [isTauri, t]);
 
   // ==========================================
   // 🌟 テーマをlocalStorageに保存するエフェクト
@@ -501,6 +545,9 @@ export default function App() {
 
         // 💡 サーバーから届いた生データのキー名をコンソールに出力します！（F12で確認してください）
         console.log("📦 サーバーから届いた生データ:", raw);
+
+        // 🌟 死活監視用：最後にデータを受信した時刻を記録
+        setAgentLastSeen(prev => ({ ...prev, [agentName]: Date.now() }));
 
         setOverviewData((prev) => [...prev, { time: timeString, [agentName]: cpuVal }].slice(-30));
 
@@ -706,9 +753,23 @@ export default function App() {
         </HeaderContent>
         <TabGroup>
             <TabButton active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setTimeRange('live'); }}>🌐 {t('overviewTab')}</TabButton>
-            {agents.map(agent => (
-              <TabButton key={agent} active={activeTab === agent} onClick={() => setActiveTab(agent)}>💻 {agent}</TabButton>
-            ))}
+            {agents.map(agent => {
+              // 🌟 最後にデータを受信してから10秒以内ならオンラインと判定
+              const isOnline = (now - (agentLastSeen[agent] || 0)) <= 10000;
+              return (
+                <TabButton 
+                  key={agent} 
+                  active={activeTab === agent} 
+                  onClick={() => setActiveTab(agent)}
+                  title={isOnline ? t('statusOnline', { defaultValue: 'Online' }) : t('statusOffline', { defaultValue: 'Offline' })}
+                >
+                  {isOnline ? '🟢' : '🔴'} {agent}
+                  <span style={{ fontSize: '0.8em', marginLeft: '6px', opacity: 0.8, fontWeight: 'normal' }}>
+                    ({isOnline ? t('statusOnline', { defaultValue: 'Online' }) : t('statusOffline', { defaultValue: 'Offline' })})
+                  </span>
+                </TabButton>
+              );
+            })}
           </TabGroup>
         </HeaderWrapper>
 
