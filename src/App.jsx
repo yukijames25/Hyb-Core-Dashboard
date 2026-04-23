@@ -336,8 +336,14 @@ export default function App() {
   const togglePin = async () => {
     if (appWindow) {
       const nextPinned = !isPinned;
-      await appWindow.setAlwaysOnTop(nextPinned);
+      // 🌟 オプティミスティック更新：先にUIの見た目を反映させてサクサク感を出します
       setIsPinned(nextPinned);
+      try {
+        await appWindow.setAlwaysOnTop(nextPinned);
+      } catch (err) {
+        console.error("Failed to toggle pin:", err);
+        setIsPinned(!nextPinned); // 失敗した場合は元の状態に戻す
+      }
     }
   };
 
@@ -358,16 +364,18 @@ export default function App() {
   }, [isTauri]);
 
   const toggleAutostart = async () => {
+    const nextAutostart = !isAutostart;
+    // 🌟 オプティミスティック更新：先にUIの見た目を反映
+    setIsAutostart(nextAutostart);
     try {
-      if (isAutostart) {
-        await disable();
-        setIsAutostart(false);
-      } else {
+      if (nextAutostart) {
         await enable();
-        setIsAutostart(true);
+      } else {
+        await disable();
       }
     } catch (err) {
       console.error("Failed to toggle autostart:", err);
+      setIsAutostart(!nextAutostart); // 失敗した場合は元の状態に戻す
     }
   };
 
